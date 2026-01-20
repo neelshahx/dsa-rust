@@ -1,6 +1,9 @@
 #![allow(unused)]
 
-use std::alloc::{Layout, alloc, dealloc};
+use std::{
+    alloc::{Layout, alloc, dealloc},
+    array,
+};
 
 struct ArrayList {
     ptr: *mut i32,
@@ -29,6 +32,69 @@ impl ArrayList {
             capacity,
         }
     }
+
+    pub fn get(&self, i: usize) -> i32 {
+        assert!(i < self.len);
+        unsafe { *(self.ptr.wrapping_add(i)) }
+    }
+
+    pub fn set(&mut self, i: usize, n: i32) {
+        assert!(i < self.capacity);
+        unsafe {
+            *(self.ptr.wrapping_add(i)) = n;
+        }
+    }
+
+    pub fn popback(&mut self) -> i32 {
+        assert!(self.len > 0);
+        let i = self.len - 1;
+        let v = self.get(i);
+        self.len -= 1;
+        v
+    }
+
+    pub fn pushback(&mut self, n: i32) {
+        if (self.len == self.capacity) {
+            self.resize()
+        }
+        self.set(self.len, n);
+        self.len += 1;
+    }
+
+    pub fn resize(&mut self) {
+        let new_capacity = if self.capacity == 0 {
+            2
+        } else {
+            2 * self.capacity
+        };
+        let ptr = unsafe {
+            let layout = Layout::array::<i32>(new_capacity).unwrap();
+            alloc(layout) as *mut i32
+        };
+        for i in 0..self.capacity {
+            unsafe {
+                *ptr.wrapping_add(i) = *self.ptr.wrapping_add(i);
+            }
+        }
+
+        let old_ptr = self.ptr;
+        let old_capacity = self.capacity;
+        let old_layout = Layout::array::<i32>(old_capacity).unwrap();
+        unsafe {
+            dealloc(old_ptr as *mut u8, old_layout);
+        }
+
+        self.ptr = ptr;
+        self.capacity = new_capacity;
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    pub fn size(&self) -> usize {
+        self.len
+    }
 }
 
 impl Drop for ArrayList {
@@ -39,5 +105,59 @@ impl Drop for ArrayList {
                 dealloc(self.ptr as *mut u8, layout); // convert from *mut i32 to *mut u8
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new() {
+        let a = ArrayList::new();
+        assert_eq!(a.size(), 0);
+        assert_eq!(a.capacity(), 0);
+    }
+
+    #[test]
+    fn test_set_get() {
+        let mut a = ArrayList::with_capacity(2);
+        a.set(0, 1);
+        a.set(1, 2);
+        assert_eq!(a.get(0), 1);
+        assert_eq!(a.get(1), 2);
+    }
+
+    #[test]
+    fn test_resize() {
+        let mut a = ArrayList::with_capacity(2);
+        a.set(0, 1);
+        a.set(1, 2);
+        a.resize();
+        assert_eq!(a.get(0), 1);
+        assert_eq!(a.get(1), 2);
+        assert_eq!(a.size(), 2);
+        assert_eq!(a.capacity(), 4);
+    }
+
+    #[test]
+    fn test_pushback_popback() {
+        let mut a = ArrayList::new();
+        a.pushback(0);
+        a.pushback(1);
+        a.pushback(2);
+        a.pushback(3);
+        a.pushback(4);
+        a.pushback(5);
+        assert_eq!(a.capacity(), 8);
+        assert_eq!(a.size(), 6);
+        assert_eq!(a.popback(), 5);
+        assert_eq!(a.popback(), 4);
+        assert_eq!(a.popback(), 3);
+        assert_eq!(a.popback(), 2);
+        assert_eq!(a.popback(), 1);
+        assert_eq!(a.popback(), 0);
+        assert_eq!(a.capacity(), 8);
+        assert_eq!(a.size(), 0);
     }
 }
