@@ -1,3 +1,24 @@
+use std::cell::UnsafeCell;
+
+fn main() {
+    unsafe {
+        let mut data = UnsafeCell::new(10);
+        let mref1 = &mut data;
+        let sref2 = &*mref1;
+        let ptr3 = sref2.get();
+
+        *ptr3 += 3;
+        opaque_read(&*sref2.get());
+        *sref2.get() += 2;
+        *mref1.get() += 1;
+        println!("{}", *data.get());
+    }
+}
+
+fn opaque_read(val: &i32) {
+    println!("{}", val);
+}
+
 #[cfg(test)]
 mod tests {
     //    #[test]
@@ -33,5 +54,28 @@ mod tests {
             *ref1 += 1;
             println!("{}", data);
         }
+    }
+
+    #[test]
+    fn shared_reference() {
+        unsafe {
+            let mut data = 10;
+            let mref1 = &mut data;
+            let ptr2 = mref1 as *mut i32;
+            let sref3 = &*mref1;
+            let ptr4 = sref3 as *const i32 as *mut i32;
+
+            // stacked borrow order
+            opaque_read(&*ptr4);
+            opaque_read(sref3);
+            *ptr2 += 2;
+            *mref1 += 1;
+
+            opaque_read(&data);
+        }
+    }
+
+    fn opaque_read(val: &i32) {
+        println!("{}", val);
     }
 }
