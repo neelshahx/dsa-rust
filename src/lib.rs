@@ -1,4 +1,5 @@
 pub mod array_list;
+pub mod deque;
 pub mod linked_list;
 
 pub mod miri_sandbox;

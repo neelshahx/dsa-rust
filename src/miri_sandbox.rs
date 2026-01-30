@@ -1,5 +1,6 @@
 use std::cell::UnsafeCell;
 
+#[allow(unused)]
 fn main() {
     unsafe {
         let mut data = UnsafeCell::new(10);
@@ -79,6 +80,7 @@ mod tests {
         println!("{}", val);
     }
 
+    #[allow(unused)]
     fn array_example() {
         unsafe {
             let mut data = [0; 10];
