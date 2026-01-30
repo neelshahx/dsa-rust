@@ -1,4 +1,6 @@
 pub mod array_list;
+pub mod linked_list;
+
 pub mod miri_sandbox;
 
 pub fn add(left: u64, right: u64) -> u64 {
