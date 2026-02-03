@@ -22,19 +22,16 @@ impl TreeMap {
         Self { root: None, len: 0 }
     }
 
-    // only return None if None passed in.
-    // if key not present: return parent node for insertion,
-    // else return existing node with matching key.
-    // caller has to do one more comparison before insertion
-    fn dfs(node: &mut Link, key: i32) -> &mut Link {
+    // returns mutable reference to location where need to insert the value
+    fn find(node: &mut Link, key: i32) -> &mut Link {
         let mut current = node;
         loop {
             let direction = match current.as_ref() {
                 None => return current,
                 Some(n) => {
-                    if key > n.key && n.right.is_some() {
+                    if key > n.key {
                         1
-                    } else if key < n.key && n.left.is_some() {
+                    } else if key < n.key {
                         -1
                     } else {
                         0
@@ -42,19 +39,26 @@ impl TreeMap {
                 }
             };
             match direction {
-                1 => current = &mut current.as_mut().unwrap().right,
-                -1 => current = &mut current.as_mut().unwrap().left,
+                1 => {
+                    current = &mut current.as_mut().unwrap().right;
+                }
+                -1 => {
+                    current = &mut current.as_mut().unwrap().left;
+                }
                 _ => return current,
             }
         }
     }
 
-    // O(log(n))
+    // if key in tree, then replace val
+    // if key not in tree, find parent, then insert leaf node
+    // if tree empty, set to root
     fn insert(&mut self, key: i32, val: i32) {
-        // new node is either a leaf node or we do a value replacement (key match)
-        match Self::dfs(&mut self.root, key) {
+        let link = Self::find(&mut self.root, key);
+        match link {
+            Some(n) => n.val = val,
             None => {
-                self.root = Some(Box::new(Node {
+                *link = Some(Box::new(Node {
                     key,
                     val,
                     left: None,
@@ -62,25 +66,7 @@ impl TreeMap {
                 }));
                 self.len += 1;
             }
-            Some(p) => {
-                if p.key == key {
-                    p.val = val;
-                } else {
-                    let new_link = Some(Box::new(Node {
-                        key,
-                        val,
-                        left: None,
-                        right: None,
-                    }));
-                    if key > p.key {
-                        p.right = new_link;
-                    } else {
-                        p.left = new_link;
-                    }
-                    self.len += 1;
-                }
-            }
-        };
+        }
     }
 
     fn get(&self, key: i32) -> Option<i32> {
@@ -140,64 +126,132 @@ impl TreeMap {
 mod tests {
     use super::*;
 
-    fn leaf_link(key: i32) -> Link {
-        Some(Box::new(Node {
-            key,
-            val: 0,
-            left: None,
-            right: None,
-        }))
-    }
-
     fn empty_tree() -> TreeMap {
         TreeMap { root: None, len: 0 }
     }
 
     fn tree3() -> TreeMap {
-        let left = leaf_link(1);
-        let right = leaf_link(5);
-        let root = Some(Box::new(Node {
-            key: 3,
-            val: 0,
-            left,
-            right,
-        }));
-        TreeMap { root, len: 3 }
+        let mut t = TreeMap::new();
+        t.insert(3, 0);
+        t.insert(1, 0);
+        t.insert(5, 0);
+        t
     }
 
+    //       4
+    //      / \
+    //     2   6
+    //    / \ / \
+    //   1  3 5  7
+    fn tree7() -> TreeMap {
+        let mut t = TreeMap::new();
+        for k in [4, 2, 6, 1, 3, 5, 7] {
+            t.insert(k, 0);
+        }
+        t
+    }
+
+    // --- find ---
+
     #[test]
-    fn dfs_empty() {
+    fn find_empty() {
         let mut tree = empty_tree();
-        assert!(TreeMap::dfs(&mut tree.root, 5).is_none());
+        assert!(TreeMap::find(&mut tree.root, 5).is_none());
     }
 
     #[test]
-    fn dfs_tree3() {
-        let mut tree = tree3(); // 3 1 5
-        assert_eq!(TreeMap::dfs(&mut tree.root, 4).as_ref().unwrap().key, 5);
-        assert_eq!(TreeMap::dfs(&mut tree.root, 6).as_ref().unwrap().key, 5);
-        assert_eq!(TreeMap::dfs(&mut tree.root, 2).as_ref().unwrap().key, 1);
-        assert_eq!(TreeMap::dfs(&mut tree.root, 0).as_ref().unwrap().key, 1);
-        assert_eq!(TreeMap::dfs(&mut tree.root, 3).as_ref().unwrap().key, 3);
+    fn find_exact() {
+        let mut tree = tree3();
+        assert_eq!(TreeMap::find(&mut tree.root, 3).as_ref().unwrap().key, 3);
+        assert_eq!(TreeMap::find(&mut tree.root, 1).as_ref().unwrap().key, 1);
+        assert_eq!(TreeMap::find(&mut tree.root, 5).as_ref().unwrap().key, 5);
     }
 
     #[test]
-    fn make_tree3() {
-        let mut tree = TreeMap { root: None, len: 0 };
-        tree.insert(3, 0);
-        tree.insert(1, 0);
-        tree.insert(5, 0);
-        assert_eq!(tree.root.as_ref().unwrap().key, 3);
-        let left = tree.root.as_ref().unwrap().left.as_ref();
-        assert_eq!(left.unwrap().key, 1);
-        let right = tree.root.as_ref().unwrap().right.as_ref();
-        assert_eq!(right.unwrap().key, 5);
+    fn find_missing_returns_none() {
+        let mut tree = tree3(); // 1 3 5
+        // keys not in tree should return None (the empty slot)
+        assert!(TreeMap::find(&mut tree.root, 0).is_none());
+        assert!(TreeMap::find(&mut tree.root, 2).is_none());
+        assert!(TreeMap::find(&mut tree.root, 4).is_none());
+        assert!(TreeMap::find(&mut tree.root, 6).is_none());
+    }
+
+    // --- insert ---
+
+    #[test]
+    fn insert_single() {
+        let mut tree = TreeMap::new();
+        tree.insert(42, 10);
+        assert_eq!(tree.root.as_ref().unwrap().key, 42);
+        assert_eq!(tree.root.as_ref().unwrap().val, 10);
+        assert_eq!(tree.len, 1);
+    }
+
+    #[test]
+    fn insert_builds_tree() {
+        let tree = tree3();
+        assert_eq!(tree.get_inorder_keys(), vec![1, 3, 5]);
         assert_eq!(tree.len, 3);
     }
 
     #[test]
-    fn inorder_traversal() {
+    fn insert_duplicate_replaces_val() {
+        let mut tree = tree3();
+        tree.insert(3, 99);
+        assert_eq!(tree.root.as_ref().unwrap().val, 99);
+        assert_eq!(tree.len, 3); // len unchanged
+    }
+
+    #[test]
+    fn insert_larger_tree() {
+        let tree = tree7();
+        assert_eq!(tree.get_inorder_keys(), vec![1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(tree.len, 7);
+    }
+
+    // --- inorder ---
+
+    #[test]
+    fn inorder_empty() {
+        let tree = empty_tree();
+        assert_eq!(tree.get_inorder_keys(), vec![]);
+    }
+
+    #[test]
+    fn inorder_single() {
+        let mut tree = TreeMap::new();
+        tree.insert(5, 0);
+        assert_eq!(tree.get_inorder_keys(), vec![5]);
+    }
+
+    #[test]
+    fn inorder_tree3() {
         let tree = tree3();
         assert_eq!(tree.get_inorder_keys(), vec![1, 3, 5]);
+    }
+
+    #[test]
+    fn inorder_tree7() {
+        let tree = tree7();
+        assert_eq!(tree.get_inorder_keys(), vec![1, 2, 3, 4, 5, 6, 7]);
+    }
+
+    #[test]
+    fn inorder_skewed_right() {
+        let mut tree = TreeMap::new();
+        for k in [1, 2, 3, 4, 5] {
+            tree.insert(k, 0);
+        }
+        assert_eq!(tree.get_inorder_keys(), vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn inorder_skewed_left() {
+        let mut tree = TreeMap::new();
+        for k in [5, 4, 3, 2, 1] {
+            tree.insert(k, 0);
+        }
+        assert_eq!(tree.get_inorder_keys(), vec![1, 2, 3, 4, 5]);
     }
 }
