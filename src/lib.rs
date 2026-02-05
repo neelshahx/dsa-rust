@@ -1,7 +1,7 @@
 pub mod array_list;
-pub mod binary_search_tree;
 pub mod deque;
 pub mod linked_list;
+pub mod tree_map;
 
 pub mod miri_sandbox;
 
