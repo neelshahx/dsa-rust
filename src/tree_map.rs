@@ -343,4 +343,98 @@ mod tests {
         assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 5, 6]);
         assert_eq!(tree.root.as_ref().unwrap().key, 5);
     }
+
+    #[test]
+    fn remove_empty() {
+        let mut tree = empty_tree();
+        assert!(tree.remove(5).is_none());
+        assert_eq!(tree.len, 0);
+    }
+
+    #[test]
+    fn remove_single() {
+        let mut tree = TreeMap::new();
+        tree.insert(5, 10);
+        assert_eq!(tree.remove(5), Some(10));
+        assert_eq!(tree.len, 0);
+        assert!(tree.root.is_none());
+    }
+
+    #[test]
+    fn remove_leaf() {
+        let mut tree = tree7();
+        assert_eq!(tree.remove(1), Some(2));
+        assert_eq!(tree.inorder_keys(), vec![2, 3, 4, 5, 6, 7]);
+        assert_eq!(tree.len, 6);
+    }
+
+    #[test]
+    fn remove_node_with_left_only() {
+        let mut tree = TreeMap::new();
+        tree.insert(5, 0);
+        tree.insert(3, 0);
+        tree.insert(2, 0);
+        assert_eq!(tree.remove(3), Some(0));
+        assert_eq!(tree.inorder_keys(), vec![2, 5]);
+    }
+
+    #[test]
+    fn remove_node_with_right_only() {
+        let mut tree = TreeMap::new();
+        tree.insert(5, 0);
+        tree.insert(3, 0);
+        tree.insert(4, 0);
+        assert_eq!(tree.remove(3), Some(0));
+        assert_eq!(tree.inorder_keys(), vec![4, 5]);
+    }
+
+    #[test]
+    fn remove_node_with_both_children() {
+        let mut tree = tree7();
+        assert_eq!(tree.remove(4), Some(5)); // root with both children
+        assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 5, 6, 7]);
+        assert_eq!(tree.root.as_ref().unwrap().key, 5); // replaced by leftmost of right
+    }
+
+    #[test]
+    fn remove_root_variations() {
+        // Root with left only
+        let mut tree = left_ladder();
+        assert_eq!(tree.remove(5), Some(6));
+        assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 4]);
+
+        // Root with right only
+        let mut tree = right_ladder();
+        assert_eq!(tree.remove(1), Some(2));
+        assert_eq!(tree.inorder_keys(), vec![2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn remove_nonexistent() {
+        let mut tree = tree3();
+        assert!(tree.remove(99).is_none());
+        assert_eq!(tree.len, 3);
+        assert_eq!(tree.inorder_keys(), vec![1, 3, 5]);
+    }
+
+    #[test]
+    fn remove_all_nodes() {
+        let mut tree = tree3();
+        assert!(tree.remove(1).is_some());
+        assert!(tree.remove(5).is_some());
+        assert!(tree.remove(3).is_some());
+        assert_eq!(tree.len, 0);
+        assert!(tree.root.is_none());
+    }
+
+    #[test]
+    fn remove_complex_case() {
+        let mut tree = tree7();
+        // Remove node where right subtree's leftmost has its own right child
+        tree.insert(8, 0);
+        tree.insert(9, 0);
+        assert_eq!(tree.remove(6), Some(7));
+        assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 4, 5, 7, 8, 9]);
+        assert_eq!(tree.len, 8);
+    }
 }
