@@ -19,36 +19,8 @@ impl TreeMap {
         Self { root: None, len: 0 }
     }
 
-    // returns mutable reference to location where need to insert the value
-    fn find(node: &mut Link, key: i32) -> &mut Link {
-        let mut current = node;
-        loop {
-            let direction = match current.as_ref() {
-                None => return current,
-                Some(n) => {
-                    if key > n.key {
-                        1
-                    } else if key < n.key {
-                        -1
-                    } else {
-                        0
-                    }
-                }
-            };
-            match direction {
-                1 => {
-                    current = &mut current.as_mut().unwrap().right;
-                }
-                -1 => {
-                    current = &mut current.as_mut().unwrap().left;
-                }
-                _ => return current,
-            }
-        }
-    }
-
     fn insert(&mut self, key: i32, val: i32) {
-        let mut curr = &mut self.root; // pointer
+        let mut curr = &mut self.root;
         loop {
             match curr {
                 Some(n) => {
@@ -62,7 +34,6 @@ impl TreeMap {
                     }
                 }
                 None => {
-                    // why do i need to dereference curr here?
                     *curr = Some(Box::new(Node {
                         key,
                         val,
@@ -93,51 +64,87 @@ impl TreeMap {
     }
 
     fn get_min(&self) -> Option<i32> {
+        let mut curr = &self.root;
+        while let Some(n) = curr {
+            match &n.left {
+                None => return Some(n.val),
+                Some(_) => curr = &n.left,
+            }
+        }
         None
     }
 
     fn get_max(&self) -> Option<i32> {
+        let mut curr = &self.root;
+        while let Some(n) = curr {
+            match &n.right {
+                None => return Some(n.val),
+                Some(_) => curr = &n.right,
+            }
+        }
         None
     }
 
-
-    // returns value
     fn remove(&mut self, key: i32) -> Option<i32> {
-        let mut res = None;
-        let mut prev: &mut Link;
-        let mut curr = &mut self.root;
-        while let Some(n) = curr {
-            if key > n.key {
-                prev = curr;
-                curr = &mut n.right;
-            } else if key < n.key {
-                prev = curr;
-                curr = &mut n.left;
+        if let Some(val) = Self::remove_recursive(&mut self.root, key) {
+            self.len -= 1;
+            return Some(val);
+        }
+        None
+    }
+
+    fn remove_recursive(link: &mut Link, key: i32) -> Option<i32> {
+        match link {
+            Some(n) if key < n.key => Self::remove_recursive(&mut n.left, key),
+            Some(n) if key > n.key => Self::remove_recursive(&mut n.right, key),
+            Some(n) => {
+                let val = n.val;
+                Self::remove_helper(link);
+                Some(val)
+            }
+            None => None,
+        }
+    }
+
+    fn remove_helper(curr: &mut Link) {
+        if let Some(mut n) = curr.take() {
+            if n.right.is_some() {
+                let mut repl = Self::take_leftmost(&mut n.right);
+                repl.left = n.left;
+                repl.right = n.right;
+                *curr = Some(repl);
             } else {
-                res = Self::_remove(prev, curr, &mut n.left, &mut n.right);
+                *curr = n.left;
             }
         }
-        res
     }
 
-    fn _remove(par: &mut Link, curr: &mut Link, left: &mut Link, right: &mut Link) -> Option<i32> {
-        Some(1)
+    fn take_leftmost(link: &mut Link) -> Box<Node> {
+        match link {
+            Some(n) if n.left.is_some() => Self::take_leftmost(&mut n.left),
+            Some(_) => {
+                let mut leftmost = link.take().unwrap();
+                *link = leftmost.right.take();
+                leftmost
+            }
+            None => unreachable!(),
+        }
     }
 
-    fn inorder_keys(link: &Link, res: &mut Vec<i32>) {
+    fn inorder_keys_helper(link: &Link, res: &mut Vec<i32>) {
         match link {
             None => (),
             Some(n) => {
-                Self::inorder_keys(&n.left, res);
+                Self::inorder_keys_helper(&n.left, res);
                 res.push(n.key);
-                Self::inorder_keys(&n.right, res);
+                Self::inorder_keys_helper(&n.right, res);
             }
         }
     }
 
-    fn get_inorder_keys(&self) -> Vec<i32> {
+    fn inorder_keys(&self) -> Vec<i32> {
         let mut res = Vec::<i32>::new();
-        Self::inorder_keys(&self.root, &mut res);
+        Self::inorder_keys_helper(&self.root, &mut res);
         res
     }
 }
@@ -166,7 +173,7 @@ mod tests {
     fn tree7() -> TreeMap {
         let mut t = TreeMap::new();
         for k in [4, 2, 6, 1, 3, 5, 7] {
-            t.insert(k, 0);
+            t.insert(k, k + 1);
         }
         t
     }
@@ -187,32 +194,6 @@ mod tests {
         tree
     }
 
-    // --- find ---
-
-    #[test]
-    fn find_empty() {
-        let mut tree = empty_tree();
-        assert!(TreeMap::find(&mut tree.root, 5).is_none());
-    }
-
-    #[test]
-    fn find_exact() {
-        let mut tree = tree3();
-        assert_eq!(TreeMap::find(&mut tree.root, 3).as_ref().unwrap().key, 3);
-        assert_eq!(TreeMap::find(&mut tree.root, 1).as_ref().unwrap().key, 1);
-        assert_eq!(TreeMap::find(&mut tree.root, 5).as_ref().unwrap().key, 5);
-    }
-
-    #[test]
-    fn find_missing_returns_none() {
-        let mut tree = tree3(); // 1 3 5
-        // keys not in tree should return None (the empty slot)
-        assert!(TreeMap::find(&mut tree.root, 0).is_none());
-        assert!(TreeMap::find(&mut tree.root, 2).is_none());
-        assert!(TreeMap::find(&mut tree.root, 4).is_none());
-        assert!(TreeMap::find(&mut tree.root, 6).is_none());
-    }
-
     // --- insert ---
 
     #[test]
@@ -227,7 +208,7 @@ mod tests {
     #[test]
     fn insert_builds_tree() {
         let tree = tree3();
-        assert_eq!(tree.get_inorder_keys(), vec![1, 3, 5]);
+        assert_eq!(tree.inorder_keys(), vec![1, 3, 5]);
         assert_eq!(tree.len, 3);
     }
 
@@ -242,7 +223,7 @@ mod tests {
     #[test]
     fn insert_larger_tree() {
         let tree = tree7();
-        assert_eq!(tree.get_inorder_keys(), vec![1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 4, 5, 6, 7]);
         assert_eq!(tree.len, 7);
     }
 
@@ -251,45 +232,45 @@ mod tests {
     #[test]
     fn inorder_empty() {
         let tree = empty_tree();
-        assert_eq!(tree.get_inorder_keys(), vec![]);
+        assert_eq!(tree.inorder_keys(), vec![]);
     }
 
     #[test]
     fn inorder_single() {
         let mut tree = TreeMap::new();
         tree.insert(5, 0);
-        assert_eq!(tree.get_inorder_keys(), vec![5]);
+        assert_eq!(tree.inorder_keys(), vec![5]);
     }
 
     #[test]
     fn inorder_tree3() {
         let tree = tree3();
-        assert_eq!(tree.get_inorder_keys(), vec![1, 3, 5]);
+        assert_eq!(tree.inorder_keys(), vec![1, 3, 5]);
     }
 
     #[test]
     fn inorder_tree7() {
         let tree = tree7();
-        assert_eq!(tree.get_inorder_keys(), vec![1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 4, 5, 6, 7]);
     }
 
     #[test]
     fn inorder_skewed_right() {
         let mut tree = right_ladder();
-        assert_eq!(tree.get_inorder_keys(), vec![1, 2, 3, 4, 5]);
+        assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 4, 5]);
     }
 
     #[test]
     fn inorder_skewed_left() {
         let mut tree = left_ladder();
-        assert_eq!(tree.get_inorder_keys(), vec![1, 2, 3, 4, 5]);
+        assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 4, 5]);
     }
 
     // -- get --
 
     #[test]
     fn get() {
-        let tree = TreeMap::new();
+        let tree = empty_tree();
         assert!(tree.get(0).is_none());
 
         let tree = tree3();
@@ -299,6 +280,12 @@ mod tests {
             } else {
                 assert_eq!(tree.get(i), Some(i + 1));
             }
+        }
+
+        let tree = tree7();
+        for i in 1..=7 {
+            assert!(tree.get(i + 7).is_none());
+            assert_eq!(tree.get(i), Some(i + 1));
         }
 
         let tree = left_ladder();
@@ -312,5 +299,48 @@ mod tests {
             assert!(tree.get(i + 5).is_none());
             assert_eq!(tree.get(i), Some(i + 1));
         }
+    }
+
+    fn get_min() {
+        let tree = empty_tree();
+        assert!(tree.get_min().is_none());
+
+        let tree = tree3();
+        assert_eq!(tree.get_min(), Some(1));
+
+        let tree = tree7();
+        assert_eq!(tree.get_min(), Some(1));
+
+        let tree = left_ladder();
+        assert_eq!(tree.get_min(), Some(1));
+
+        let tree = right_ladder();
+        assert_eq!(tree.get_min(), Some(1));
+    }
+
+    fn get_max() {
+        let tree = empty_tree();
+        assert!(tree.get_min().is_none());
+
+        let tree = tree3();
+        assert_eq!(tree.get_min(), Some(5));
+
+        let tree = tree7();
+        assert_eq!(tree.get_min(), Some(7));
+
+        let tree = left_ladder();
+        assert_eq!(tree.get_min(), Some(5));
+
+        let tree = right_ladder();
+        assert_eq!(tree.get_min(), Some(5));
+    }
+
+    // -- remove --
+
+    fn remove() {
+        let mut tree = tree7();
+        assert!(tree.remove(4).is_some());
+        assert_eq!(tree.inorder_keys(), vec![1, 2, 3, 5, 6]);
+        assert_eq!(tree.root.as_ref().unwrap().key, 5);
     }
 }
